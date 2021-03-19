@@ -1,0 +1,9 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - gem install cfn-nag      
+  build:
+    commands:
+      - chmod +x deploy/run-cfnnag.sh
+      - /bin/bash deploy/run-cfnnag.sh
