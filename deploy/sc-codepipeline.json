@@ -1,11 +1,11 @@
 {
-    "Description": "ServiceCatalog Portfolio CI/CD Automation Pipeline (fdp-1p4dlgcoo)",
+    "Description": "ServiceCatalog Portfolio CI/CD Automation Pipeline",
     "AWSTemplateFormatVersion": "2010-09-09",
     "Parameters": {
         "CodeCommitRepoName": {
             "Type":"String",
             "Description":"The project name, also the CodeCommit Repository name",
-            "Default":"SCPortfoliosRepo"
+            "Default":"SCPortfoliosRepos"
         },"ChildAccountAccess":{
             "Type":"CommaDelimitedList",
             "Description":"Comma delimited list of AccountIds to Grant GetObject Access to the Deployed Templates Bucket"
@@ -54,9 +54,9 @@
                 "Effect": "Allow",
                 "Principal": {
                     "AWS": {"Fn::Split": [",",  
-                        {"Fn::Sub": [ "arn:aws:iam::${acc}:role/AWSCloudFormationStackSetExecutionRole", {
+                        {"Fn::Sub": [ "arn:aws:iam::${acc}:role/StackSetExecutionRole", {
                             "acc": {"Fn::Join": [
-                                ":role/AWSCloudFormationStackSetExecutionRole,arn:aws:iam::", 
+                                ":role/StackSetExecutionRole,arn:aws:iam::", 
                                 { "Ref": "ChildAccountAccess" }
                             ]}
                         }]}
@@ -77,7 +77,7 @@
         "CodeBuildRole" :{
             "Type":"AWS::IAM::Role",
             "Properties":{
-                "Description":"CodePipelie role for validating and deploying artifacts. This role will need expansive powers to test templates.",
+                "Description":"CodePipelie role for validating and deploying artifacts.",
                 "AssumeRolePolicyDocument": {
                     "Version":"2012-10-17",
                     "Statement":{
@@ -118,8 +118,7 @@
                                     {"Fn::GetAtt":["PipelineArtifacts", "Arn"]},
                                     {"Fn::Sub" : ["${bucketarn}/*", {"bucketarn": { "Fn::GetAtt": ["PipelineArtifacts", "Arn"]}}] },
                                     {"Fn::GetAtt":["DeployedTemplates", "Arn"]},
-                                    {"Fn::Sub" : ["${bucketarn}/*", {"bucketarn": { "Fn::GetAtt": ["DeployedTemplates", "Arn"]}}] },
-                                    {"Fn::Sub":"arn:aws:s3:::taskcat-*"}
+                                    {"Fn::Sub" : ["${bucketarn}/*", {"bucketarn": { "Fn::GetAtt": ["DeployedTemplates", "Arn"]}}] }
                                 ]
                             },{
                               "Effect": "Allow",
@@ -216,7 +215,7 @@
                                 ],
                                 "Resource": [
                                     {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-CodeBuildRole-*"},
-                                    {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/SC-RA-IACPipeline-*"},
+                                    {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/SC-IACPipeline-*"},
                                     {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/tcat-tag-*"},
                                     {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:instance-profile/tcat-tag-*"},
                                     {"Fn::Sub": "arn:aws:iam::${AWS::AccountId}:group/ServiceCatalogEndusers"},
@@ -257,7 +256,7 @@
         "CodePipelineManageStepsRole":{
             "Type":"AWS::IAM::Role",
             "Properties":{
-                "Description":"CodePipelie role for moving objects through the build and deploy stages.",
+                "Description":"CodePipeline role for moving objects through the build and deploy stages.",
                 "AssumeRolePolicyDocument": {
                     "Version":"2012-10-17",
                     "Statement":{
