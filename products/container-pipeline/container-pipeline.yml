@@ -270,6 +270,7 @@ Resources:
         Type: CODEPIPELINE
         BuildSpec: codepipeline/buildspec-validate.yml
       TimeoutInMinutes: 10
+  # Figure 1
   ProductPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -282,6 +283,7 @@ Resources:
         Fn::GetAtt:
           - CodePipelineArtifactsRole
           - Arn
+      
       Stages:
         - Name: SourceStageCodeCommit
           Actions:
@@ -299,6 +301,12 @@ Resources:
                 BranchName: master
               OutputArtifacts:
                 - Name: SourceArtifacts
+        # JUnit Testing - Build.yml would go here
+        # Clair / CloudSploit testing would go here
+        # Selenium testing would go here 
+        # OWASP testing would go here
+        # Blackduck software analysis would go here
+        # Checkmarx analysis would go here
         - Name: BuildAndValidate
           Actions:
             - InputArtifacts:
@@ -327,6 +335,8 @@ Resources:
                 ProjectName:
                   Ref: ProjValidateContainer
               RunOrder: 2
+        # Approval Gate would go here
+        # Open Policy Agent scanning integration would be included in deploy step
         - Name: Deploy
           Actions:
             - InputArtifacts:
@@ -342,6 +352,7 @@ Resources:
                   Ref: ProjDeployContainer
               OutputArtifacts:
                 - Name: DeployOutput
+        # AWS config integration / configuration would he handled here
 Outputs:
   CloneUrlSsh:
     Value:
