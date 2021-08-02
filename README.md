@@ -1,6 +1,7 @@
 # PipelineFoundations-RefArchitecture
-![VRLogo](src/Images/vr-logo.png)
+![VRLogo](vr-logo.png)
 The Pipeline Foundation solution enables application teams to request  a deployment pipeline that comes with all of the necessary components, integrations, and configuration for the team to deploy their code.
+![EndState](end-state.png)
 ## **What is this product?**
 This project consists of CloudFormation templates for Service Catalog products and portfolios. Each portfolio will contain one or more job-specific deployment pipelines. For example: An ECS portfolio might contain deployment pipelines for deploying a Java app to ECS or a Python app to ECS. A user simply chooses the pipeline they want from Service Catalog and that pipeline is created with everything they need to start deploying code.
 ![pipeline-foundation-kube.png](pipeline-foundation-kube.png)
