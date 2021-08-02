@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Orchestrator Step Function ServiceCatalog product
+Parameters:
+  PortfolioProvider:
+    Type: String
+    Description: Provider Name
+  LaunchConstraintARN:
+    Type: String
+    Description: ARN of the launch constraint role.
+  PortfolioId:
+    Type: String
+    Description: The SC portfolio this product will be attached to.
+  RepoRootURL:
+    Type: String
+    Description: Root url for the repo containing the product templates.
+Resources:
+  OrchestratorStepFunction:
+    Type: 'AWS::ServiceCatalog::CloudFormationProduct'
+    Properties:
+      Name: Orchestrator Step Function
+      Description: >-
+        This product builds a StateMachine to perform prerequisite steps needed for Kubernetes
+      Owner: !Ref PortfolioProvider
+      Distributor: !Ref PortfolioProvider
+      SupportDescription: Operations Team
+      SupportEmail: support@yourcompany.com
+      AcceptLanguage: en
+      SupportUrl: 'http://helpdesk.yourcompany.com'
+      ProvisioningArtifactParameters:
+        - Description: Certificate Step Function
+          Info:
+            LoadTemplateFromURL: !Sub '${RepoRootURL}orchestrator/orchestrator-step-function.yml'
+          Name: v1.0
+  AssociateOrchStep:
+    Type: 'AWS::ServiceCatalog::PortfolioProductAssociation'
+    Properties:
+      PortfolioId: !Ref PortfolioId
+      ProductId: !Ref OrchestratorStepFunction
+  ConstraintOrchStep:
+    Type: 'AWS::ServiceCatalog::LaunchRoleConstraint'
+    DependsOn: AssociateOrchStep
+    Properties:
+      PortfolioId: !Ref PortfolioId
+      ProductId: !Ref OrchestratorStepFunction
+      RoleArn: !Ref LaunchConstraintARN
+      Description: !Ref LaunchConstraintARN
+Outputs:
+  ProductId:
+    Value: !Ref OrchestratorStepFunction
