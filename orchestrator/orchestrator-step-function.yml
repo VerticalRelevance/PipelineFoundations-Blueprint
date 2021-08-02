@@ -278,4 +278,4 @@ Outputs:
       - LambdaCallStateMachine
       - Arn
     Export:
-      Name: LambdaCallStateMachineCertArn
+      Name: LambdaCallStateMachineArn
