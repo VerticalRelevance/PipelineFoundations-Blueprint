@@ -1,0 +1,562 @@
+Description: Container CI/CD Automation Pipeline
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  CodeCommitRepoName:
+    Type: String
+    Description: 'The project name, also the CodeCommit Repository name'
+    Default: ETLTasks
+  ECRRepoName:
+    Type: String
+    Description: Name of the ECR repository. must be lowercase.
+    Default: etltest
+Resources:
+  PipelineArtifacts:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  ECRRepo:
+    Type: 'AWS::ECR::Repository'
+    Properties:
+      RepositoryName: !Ref ECRRepoName
+  ETLTasksRepo:
+    Type: 'AWS::CodeCommit::Repository'
+    Properties:
+      RepositoryDescription: Repository for Service Catalog Portfolios and products
+      RepositoryName: !Ref CodeCommitRepoName
+      Triggers: []
+  CodeBuildRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description: >-
+        CodePipelie role for building and deploying artifacts. This role will
+        need expansive powers to test templates.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+          Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonEC2FullAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodePipelineFullAccess'
+      Policies:
+        - PolicyName: CodeBuildManageS3Artifacts
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:CreateBucket'
+                  - 's3:DeleteBucket'
+                  - 's3:DeleteBucketPolicy'
+                  - 's3:GetBucketPolicy'
+                  - 's3:GetBucketPolicyStatus'
+                  - 's3:PutBucketPolicy'
+                  - 's3:GetBucketLocation'
+                  - 's3:DeleteObject'
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !GetAtt 
+                    - PipelineArtifacts
+                    - Arn
+                  - !Sub 
+                    - '${bucketarn}/*'
+                    - bucketarn: !GetAtt 
+                        - PipelineArtifacts
+                        - Arn
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 'logs:DescribeLogStreams'
+                Resource:
+                  - !Sub >-
+                    arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                Resource: '*'
+        - PolicyName: CodeBuildManageECR
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:CompleteLayerUpload'
+                  - 'ecr:InitiateLayerUpload'
+                  - 'ecr:PutImage'
+                  - 'ecr:UploadLayerPart'
+                Resource:
+                  - !GetAtt 
+                    - ECRRepo
+                    - Arn
+                Effect: Allow
+              - Action:
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecs:UpdateService'
+                Resource: '*'
+                Effect: Allow
+  CodePipelineArtifactsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description: CodePipelie role for moving objects through the build and deploy stages.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: codepipeline.amazonaws.com
+          Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: CodePipelineManageS3Artifacts
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:GetBucketVersioning'
+                  - 's3:PutObject'
+                Resource:
+                  - !GetAtt 
+                    - PipelineArtifacts
+                    - Arn
+                  - !Sub 
+                    - '${bucketarn}/*'
+                    - bucketarn: !GetAtt 
+                        - PipelineArtifacts
+                        - Arn
+        - PolicyName: codepipeline-codecommit
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codecommit:GetBranch'
+                  - 'codecommit:GetCommit'
+                  - 'codecommit:UploadArchive'
+                  - 'codecommit:GetUploadArchiveStatus'
+                  - 'codecommit:CancelUploadArchive'
+                Resource: !GetAtt 
+                  - ETLTasksRepo
+                  - Arn
+              - Effect: Allow
+                Action:
+                  - 'codebuild:StartBuild'
+                  - 'codebuild:StartBuild'
+                  - 'codebuild:StopBuild'
+                  - 'codebuild:BatchGetProjects'
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:ListBuildsForProject'
+                Resource:
+                  - !Sub 
+                    - >-
+                      arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${cbproj}
+                    - cbproj: !Ref ProjBuildContainer
+                  - !Sub 
+                    - >-
+                      arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${cbproj}
+                    - cbproj: !Ref ProjValidateContainer
+                  - !Sub 
+                    - >-
+                      arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${cbproj}
+                    - cbproj: !Ref ProjDeployContainer
+              - Effect: Allow
+                Action:
+                  - 'codebuild:ListBuilds'
+                  - 'codebuild:ListProjects'
+                  - 'codebuild:ListCuratedEnvironmentImages'
+                  - 'codebuild:ListSourceCredentials'
+                Resource: '*'
+  CustomProductionContainer:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: DeployToProd
+      Description: push the container to ECR.
+      ServiceRole: !GetAtt 
+        - CodeBuildRole
+        - Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Sub '${AWS::Region}'
+            Type: PLAINTEXT
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub '${AWS::AccountId}'
+            Type: PLAINTEXT
+          - Name: IMAGE_REPO_NAME
+            Value: !Ref ECRRepoName
+            Type: PLAINTEXT
+          - Name: IMAGE_TAG_LATEST
+            Value: latest
+            Type: PLAINTEXT
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec/production.yml
+      TimeoutInMinutes: 10
+  CustomStagingContainer:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: DeployToStaging
+      Description: push the container to ECR.
+      ServiceRole: !GetAtt 
+        - CodeBuildRole
+        - Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Sub '${AWS::Region}'
+            Type: PLAINTEXT
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub '${AWS::AccountId}'
+            Type: PLAINTEXT
+          - Name: IMAGE_REPO_NAME
+            Value: !Ref ECRRepoName
+            Type: PLAINTEXT
+          - Name: IMAGE_TAG_LATEST
+            Value: latest
+            Type: PLAINTEXT
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec/staging.yml
+      TimeoutInMinutes: 10
+  CustomBuildContainer:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: CustomBuild_Container
+      Description: build the container
+      ServiceRole: !GetAtt 
+        - CodeBuildRole
+        - Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Sub '${AWS::Region}'
+            Type: PLAINTEXT
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub '${AWS::AccountId}'
+            Type: PLAINTEXT
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec/build.yml
+      TimeoutInMinutes: 10
+  CustomTestContainer:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: CustomTest_Container
+      Description: run validations on the container
+      ServiceRole: !GetAtt 
+        - CodeBuildRole
+        - Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        EnvironmentVariables:
+          - Name: PROJECTNAME
+            Value: !Ref CodeCommitRepoName
+            Type: PLAINTEXT
+          - Name: ARTIFACT_BUCKET
+            Value: !Ref PipelineArtifacts
+            Type: PLAINTEXT
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec/test.yml
+      TimeoutInMinutes: 10
+  RequiredProductionContainer:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: DeployToProdRequired
+      Description: push the container to ECR.
+      ServiceRole: !GetAtt 
+        - CodeBuildRole
+        - Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Sub '${AWS::Region}'
+            Type: PLAINTEXT
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub '${AWS::AccountId}'
+            Type: PLAINTEXT
+          - Name: IMAGE_REPO_NAME
+            Value: !Ref ECRRepoName
+            Type: PLAINTEXT
+          - Name: IMAGE_TAG_LATEST
+            Value: latest
+            Type: PLAINTEXT
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: codepipeline/production.yml
+      TimeoutInMinutes: 10
+  RequiredStagingContainer:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: DeployToStagingRequired
+      Description: push the container to ECR.
+      ServiceRole: !GetAtt 
+        - CodeBuildRole
+        - Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Sub '${AWS::Region}'
+            Type: PLAINTEXT
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub '${AWS::AccountId}'
+            Type: PLAINTEXT
+          - Name: IMAGE_REPO_NAME
+            Value: !Ref ECRRepoName
+            Type: PLAINTEXT
+          - Name: IMAGE_TAG_LATEST
+            Value: latest
+            Type: PLAINTEXT
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: codepipeline/staging.yml
+      TimeoutInMinutes: 10
+  RequiredBuildContainer:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: RequiredBuild_Container
+      Description: build the container
+      ServiceRole: !GetAtt 
+        - CodeBuildRole
+        - Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Sub '${AWS::Region}'
+            Type: PLAINTEXT
+          - Name: AWS_ACCOUNT_ID
+            Value: !Sub '${AWS::AccountId}'
+            Type: PLAINTEXT
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: codepipeline/build.yml
+      TimeoutInMinutes: 10
+  RequiredTestContainer:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: RequiredTest_Container
+      Description: run validations on the container
+      ServiceRole: !GetAtt 
+        - CodeBuildRole
+        - Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:3.0'
+        EnvironmentVariables:
+          - Name: PROJECTNAME
+            Value: !Ref CodeCommitRepoName
+            Type: PLAINTEXT
+          - Name: ARTIFACT_BUCKET
+            Value: !Ref PipelineArtifacts
+            Type: PLAINTEXT
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: codepipeline/test.yml
+      TimeoutInMinutes: 10
+  ProductPipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineArtifacts
+      Name: ETL-Container-ProductPipeline
+      RoleArn: !GetAtt 
+        - CodePipelineArtifactsRole
+        - Arn
+      Stages:
+        - Name: SourceStageCodeCommit
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: '1'
+                Provider: CodeCommit
+              Configuration:
+                RepositoryName: !GetAtt 
+                  - ETLTasksRepo
+                  - Name
+                BranchName: master
+              OutputArtifacts:
+                - Name: SourceArtifacts
+        - Name: BuildAndValidate
+          Actions:
+            - InputArtifacts:
+                - Name: SourceArtifacts
+              Name: CustomBuild
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              OutputArtifacts:
+                - Name: BuildArtifacts
+              Configuration:
+                ProjectName: !Ref CustomBuildContainer
+              RunOrder: 1
+            - InputArtifacts:
+                - Name: BuildArtifacts
+              Name: RequiredBuild
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref RequiredBuildContainer
+              RunOrder: 2
+        - Name: Test
+          Actions:
+            - InputArtifacts:
+                - Name: SourceArtifacts
+              Name: CustomTest
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              OutputArtifacts:
+                - Name: BuildArtifacts
+              Configuration:
+                ProjectName: !Ref CustomTestContainer
+              RunOrder: 1
+            - InputArtifacts:
+                - Name: BuildArtifacts
+              Name: RequiredTest
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref RequiredTestContainer
+              RunOrder: 2
+        - Name: Staging
+          Actions:
+            - InputArtifacts:
+                - Name: SourceArtifacts
+              Name: CustomStaging
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              OutputArtifacts:
+                - Name: BuildArtifacts
+              Configuration:
+                ProjectName: !Ref CustomStagingContainer
+              RunOrder: 1
+            - InputArtifacts:
+                - Name: BuildArtifacts
+              Name: RequiredStaging
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref RequiredStagingContainer
+              RunOrder: 2
+        - Name: ApprovalStage
+          Actions:
+            - Name: RequiredApproval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: '1'
+                Provider: Manual
+              InputArtifacts: []
+              OutputArtifacts: []
+              RunOrder: 1
+        - Name: Production
+          Actions:
+            - InputArtifacts:
+                - Name: SourceArtifacts
+              Name: CustomProduction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              OutputArtifacts:
+                - Name: BuildArtifacts
+              Configuration:
+                ProjectName: !Ref CustomProductionContainer
+              RunOrder: 1
+            - InputArtifacts:
+                - Name: BuildArtifacts
+              Name: RequiredProduction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref RequiredProductionContainer
+              RunOrder: 2
+Outputs:
+  CloneUrlSsh:
+    Value: !GetAtt 
+      - ETLTasksRepo
+      - CloneUrlSsh
+    Description: URL for ssh cloning the Product Repo
+  CloneUrlHttp:
+    Value: !GetAtt 
+      - ETLTasksRepo
+      - CloneUrlHttp
+    Description: URL for https cloning the Product Repo
+  ContainerImageURI:
+    Value: !Sub >-
+      ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}:latest
+    Description: URI for the published image in ECR
