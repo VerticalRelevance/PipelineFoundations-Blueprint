@@ -1,9 +1,12 @@
 # Pipeline Foundations Blueprint
-![VRLogo](vr-logo.png)
 
 The Pipeline Foundation solution enables application teams to request  a deployment pipeline that comes with all of the necessary components, integrations, and configuration for the team to deploy their code.
 
 ![EndState](end-state.png)
+1. User requests a pipeline by launching the Service Catalog pipeline product 
+2. The pipeline product launches other products that are needed for the pipeline 
+3. The orchestrator is called to perform any out-of-band activities 
+4. The fully provisioned and configured pipeline is provided back to the user for use. 
 
 ## **Installation** ##
 1. Create an S3 bucket (or use an existing bucket) that will serve as the main source of CloudFormation templates. Update the `S3RootURL` paramater in `install.sh` with the bucket name *TODO*
