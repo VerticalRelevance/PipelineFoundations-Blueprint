@@ -1,15 +1,9 @@
-# PipelineFoundations-RefArchitecture
+# Pipeline Foundations Blueprint
 ![VRLogo](vr-logo.png)
+
 The Pipeline Foundation solution enables application teams to request  a deployment pipeline that comes with all of the necessary components, integrations, and configuration for the team to deploy their code.
+
 ![EndState](end-state.png)
-## **What is this product?**
-This project consists of CloudFormation templates for Service Catalog products and portfolios. Each portfolio will contain one or more job-specific deployment pipelines. For example: An ECS portfolio might contain deployment pipelines for deploying a Java app to ECS or a Python app to ECS. A user simply chooses the pipeline they want from Service Catalog and that pipeline is created with everything they need to start deploying code.
-![pipeline-foundation-kube.png](pipeline-foundation-kube.png)
-This project also contains an admin deployment pipeline that allows infrastructure engineers to use Infrastructure as Code (IaC) to manage the Portfolios and Products across multiple accounts and regions in ServiceCatalog.. When CloudFormation templates are placed in the `portfolios` and `products` folders and checked into version control, the admin deployment pipeline is kicked off. The pipeline will parse through the `portfolios` and `products` folders and will run the templates through cfn-nag to ensure all templates are written correctly and securely. Once scanned and validated, the templates are uploaded to S3 and each portfolio is updated to the most current version of the template.
-![pipeline-foundation-cicd.png](pipeline-foundation-cicd.png)
-
-## **Naming convention**
-
 
 ## **Installation** ##
 1. Create an S3 bucket (or use an existing bucket) that will serve as the main source of CloudFormation templates. Update the `S3RootURL` paramater in `install.sh` with the bucket name *TODO*
