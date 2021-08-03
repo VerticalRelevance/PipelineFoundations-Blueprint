@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: CodePipeline container project ServiceCatalog product
+Description: CodePipeline container project with orchestrator ServiceCatalog product
 Parameters:
   PortfolioProvider:
     Type: String
@@ -14,11 +14,11 @@ Parameters:
     Type: String
     Description: Root url for the repo containing the product templates.
 Resources:
-  containerpipeline:
+  PipelineWithOrchestrator:
     Type: 'AWS::ServiceCatalog::CloudFormationProduct'
     Properties:
-      Name: Container Codepipeline project
-      Description: This product builds a codepipeline project for container CI/CD.
+      Name: Container Codepipeline with Orchestrator
+      Description: This product builds a codepipeline project for container CI/CD that triggers an orchestrator step function
       Owner: !Ref PortfolioProvider
       Distributor: !Ref PortfolioProvider
       SupportDescription: Operations Team
@@ -26,23 +26,23 @@ Resources:
       AcceptLanguage: en
       SupportUrl: 'http://helpdesk.yourcompany.com'
       ProvisioningArtifactParameters:
-        - Description: CodePipeline project
+        - Description: CodePipeline project with orchestrator
           Info:
-            LoadTemplateFromURL: !Sub '${RepoRootURL}skeleton/container-pipeline.yml'
+            LoadTemplateFromURL: !Sub '${RepoRootURL}products/pipeline-with-orchestrator.yml'
           Name: v1.0
   Associatenginxcf:
     Type: 'AWS::ServiceCatalog::PortfolioProductAssociation'
     Properties:
       PortfolioId: !Ref PortfolioId
-      ProductId: !Ref containerpipeline
+      ProductId: !Ref PipelineWithOrchestrator
   constraintnginxcf:
     Type: 'AWS::ServiceCatalog::LaunchRoleConstraint'
     DependsOn: Associatenginxcf
     Properties:
       PortfolioId: !Ref PortfolioId
-      ProductId: !Ref containerpipeline
+      ProductId: !Ref PipelineWithOrchestrator
       RoleArn: !Ref LaunchConstraintARN
       Description: !Ref LaunchConstraintARN
 Outputs:
   ProductId:
-    Value: !Ref containerpipeline
+    Value: !Ref PipelineWithOrchestrator

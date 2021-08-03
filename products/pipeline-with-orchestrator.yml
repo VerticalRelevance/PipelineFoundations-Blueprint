@@ -1,0 +1,19 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'Pipeline with Orchestrator'
+Parameters:
+  Namespace:
+    Type: String
+    Description: Namespace to use
+Resources:
+  CustomResourceOrchestrator:
+    Type: 'Custom::CreateNamespace'
+    Properties:
+      ServiceToken: !ImportValue LambdaCallStateMachineArn
+      Namespace: !Ref Namespace
+  SkeletonPipeline:
+    Type: AWS::ServiceCatalog::CloudFormationProvisionedProduct
+    DependsOn: CustomResourceOrchestrator
+    Properties:
+      ProductName: Container Codepipeline project
+      ProvisioningArtifactName: '1.0'
